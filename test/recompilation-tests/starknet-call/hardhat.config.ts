@@ -1,9 +1,10 @@
 import "../dist/src/index.js";
 
 module.exports = {
+    solidity: "0.6.12",
     starknet: {
-        dockerizedVersion: "0.9.0",
-        network: process.env.NETWORK
+        network: process.env.NETWORK,
+        recompile: true
     },
     networks: {
         devnet: {
