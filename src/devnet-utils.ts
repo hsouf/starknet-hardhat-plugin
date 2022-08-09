@@ -4,7 +4,7 @@ import { Devnet, HardhatRuntimeEnvironment } from "hardhat/types";
 
 import { PLUGIN_NAME } from "./constants";
 import { L2ToL1Message } from "./starknet-types";
-import { sleep } from "./devnet/integrated-devnet";
+import { sleep } from "./devnet/external-server";
 import fs from "fs";
 import fspath from "path";
 
