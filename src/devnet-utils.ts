@@ -142,7 +142,7 @@ export class DevnetUtils implements Devnet {
             await axios.post(
                 `${this.endpoint}/dump`,
                 { path },
-                { timeout: 20000 } // timeout is required because the server can die
+                { timeout: 20_000 } // timeout is required because the server can die
             );
             await this.waitUntilSaveFinished(path);
         }, "Request failed. Make sure your network has the /dump endpoint");
@@ -186,7 +186,7 @@ export class DevnetUtils implements Devnet {
             await axios.post(
                 `${this.endpoint}/load`,
                 { path },
-                { timeout: 20000 } // timeout is required because the server can die
+                { timeout: 20_000 } // timeout is required because the server can die
             );
         }, "Request failed. Make sure your network has the /load endpoint");
     }
