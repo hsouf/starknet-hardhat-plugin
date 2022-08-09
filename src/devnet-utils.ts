@@ -6,7 +6,7 @@ import { PLUGIN_NAME } from "./constants";
 import { L2ToL1Message } from "./starknet-types";
 import { sleep } from "./devnet/integrated-devnet";
 import fs from "fs";
-import fspath from 'path';
+import fspath from "path";
 
 interface L1ToL2Message {
     address: string;
@@ -139,7 +139,8 @@ export class DevnetUtils implements Devnet {
             }
 
             // the server will reply immediately and dumping is done in a background thread
-            await axios.post(`${this.endpoint}/dump`,
+            await axios.post(
+                `${this.endpoint}/dump`,
                 { path },
                 { timeout: 20000 } // timeout is required because the server can die
             );
@@ -147,12 +148,12 @@ export class DevnetUtils implements Devnet {
         }, "Request failed. Make sure your network has the /dump endpoint");
     }
 
-    async waitUntilSaveFinished(path:string): Promise<void> {
+    async waitUntilSaveFinished(path: string): Promise<void> {
         const maxWaitMillis = 20_000;
         const startTime = new Date().getTime();
 
-        async function waitWithTimeout(waitMillis:number): Promise<void> {
-            if ((new Date().getTime() - startTime) > maxWaitMillis) {
+        async function waitWithTimeout(waitMillis: number): Promise<void> {
+            if (new Date().getTime() - startTime > maxWaitMillis) {
                 throw new HardhatPluginError(PLUGIN_NAME, "devnet.dump() timed out");
             }
             await sleep(waitMillis);
@@ -164,7 +165,8 @@ export class DevnetUtils implements Devnet {
         }
 
         // and wait until file size finishes changing
-        let size = 0, lastSize = 0;
+        let size = 0,
+            lastSize = 0;
         while ((size = fs.statSync(path).size) !== lastSize) {
             lastSize = size;
             await waitWithTimeout(50);
@@ -181,7 +183,8 @@ export class DevnetUtils implements Devnet {
             }
             // the load request will respond with success when state has finished loading
             // so this request can take 1-5 seconds variably
-            await axios.post(`${this.endpoint}/load`,
+            await axios.post(
+                `${this.endpoint}/load`,
                 { path },
                 { timeout: 20000 } // timeout is required because the server can die
             );
