@@ -38,7 +38,8 @@ import {
     starknetTestAction,
     starknetRunAction,
     starknetEstimateFeeAction,
-    starknetPluginVersionAction
+    starknetPluginVersionAction,
+    starknetMigrateAction
 } from "./task-actions";
 import {
     bigIntToShortStringUtil,
@@ -49,7 +50,8 @@ import {
     getTransactionReceiptUtil,
     getWalletUtil,
     shortStringToBigIntUtil,
-    getBlockUtil
+    getBlockUtil,
+    getNonceUtil
 } from "./extend-utils";
 import { DevnetUtils } from "./devnet-utils";
 import { ExternalServer } from "./external-server";
@@ -284,6 +286,11 @@ extendEnvironment((hre) => {
         getBlock: async (identifier) => {
             const block = await getBlockUtil(hre, identifier);
             return block;
+        },
+
+        getNonce: async (address, options) => {
+            const nonce = await getNonceUtil(hre, address, options);
+            return nonce;
         }
     };
 });
@@ -392,3 +399,8 @@ task("run")
 task("starknet-plugin-version", "Prints the version of the starknet plugin.").setAction(
     starknetPluginVersionAction
 );
+
+task("migrate", "Migrates a cairo contract to a new version.")
+    .addOptionalVariadicPositionalParam("paths", "The name of the contract to migrate")
+    .addFlag("inplace", "Applies changes to the files in place.")
+    .setAction(starknetMigrateAction);

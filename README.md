@@ -53,7 +53,7 @@ This plugin was tested with:
     -   If you opt for the containerized version, make sure you have a running Docker daemon.
     -   If you're experiencing Docker access issues, check [this](https://stackoverflow.com/questions/52364905/after-executing-following-code-of-dockerode-npm-getting-error-connect-eacces-v).
 -   Linux / macOS:
-    -   On Windows, we recommend using WSL 2.
+    -   On Windows, we recommend using [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) with Docker instance installed on [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install) instead of using Docker Desktop on your windows. Example installation for Ubuntu can be found [here](https://docs.docker.com/engine/install/ubuntu/).
 
 ## CLI commands
 
@@ -137,7 +137,7 @@ For `<LICENSE_SCHEME>` the command takes [_No License (None)_](https://github.co
 npx hardhat starknet-deploy-account [--starknet-network <NAME>] [--wallet <WALLET_NAME>]
 ```
 
-Deploys the wallet `wallets["WALLET_NAME"]` configured in the `hardhat.config` file
+Deploys the wallet `wallets["WALLET_NAME"]` configured in the `hardhat.config` file. Uses the modified OZ implementation used by Starknet CLI.
 
 ```
 npx hardhat starknet-deploy-account --starknet-network myNetwork --wallet MyWallet
@@ -182,10 +182,19 @@ Estimates the gas fee of a function execution.
 
 ### `starknet-plugin-version`
 
-Prints the version of the plugin.
-
 ```
 npx hardhat starknet-plugin-version
+```
+Prints the version of the plugin.
+
+### `migrate`
+
+```
+npx hardhat migrate [PATH...] [--inplace]
+```
+Converts old cairo code to the new syntax. The `--inplace` flag will change the contract file in place.
+```
+npx hardhat migrate --inplace contract/contract.cairo
 ```
 
 ### `run`
@@ -206,7 +215,7 @@ import { starknet } from "hardhat";
 const starknet = require("hardhat").starknet;
 ```
 
-To see all the utilities introduced by the `starknet` object, check [this](src/type-extensions.ts#L104) out.
+To see all the utilities introduced by the `starknet` object, check [this](src/type-extensions.ts#L184) out.
 
 ## Testing
 
@@ -260,10 +269,11 @@ describe("My Test", function () {
    * - view function get_balance() -> (res: felt)
    */
   it("should work with old-style deployment", async function () {
+    const account  = ...;
     const contractFactory = await starknet.getContractFactory("MyContract");
 
-    await contract.invoke("increase_balance", { amount: 10 }); // invoke method by name and pass arguments by name
-    await contract.invoke("increase_balance", { amount: BigInt("20") });
+    await account.invoke(contract, "increase_balance", { amount: 10 }); // invoke method by name and pass arguments by name
+    await account.invoke(contract, "increase_balance", { amount: BigInt("20") });
 
     const { res } = await contract.call("get_balance"); // call method by name and receive the result by name
     expect(res).to.deep.equal(BigInt(40)); // you can also use 40n instead of BigInt(40)
@@ -276,11 +286,11 @@ describe("My Test", function () {
 
   it("should declare and deploy", async function() {
     const contractFactory = await starknet.getContractFactory("MyContract");
-    const classHash = await contractFactory.declare();
+    const account = await starknet.getAccountFromAddress(...);
 
     // You are expected to have a Deployer contract with a deploy method
     const deployer = await starknet.getContractFactory("Deployer");
-    const account = await starknet.getAccountFromAddress(...);
+    const classHash = await account.declare(contractFactory, { maxFee: ... });
     const opts = { maxFee: BigInt(...) };
     const txHash = await account.invoke(deployer, "my_deploy", { class_hash: classHash }, opts);
     const deploymentAddress = ...; // get the address, e.g. from an event emitted by deploy
@@ -347,12 +357,12 @@ More detailed documentation can be found [here](#account).
     const account = await starknet.getAccountFromAddress(accountAddress, process.env.PRIVATE_KEY, "OpenZeppelin");
     console.log("Account:", account.address, account.privateKey, account.publicKey);
 
-    const { res: currBalance } = await account.call(contract, "get_balance");
+    const { res: currBalance } = await contract.call("get_balance");
     const amount = BigInt(10);
     // Passing max_fee is currently optional
     await account.invoke(contract, "increase_balance", { amount }, { maxFee: BigInt("123") });
 
-    const { res: newBalance } = await account.call(contract, "get_balance");
+    const { res: newBalance } = await contract.call("get_balance");
     expect(newBalance).to.deep.equal(currBalance + amount);
   });
 });
@@ -372,7 +382,8 @@ it("should estimate fee", async function () {
 ```typescript
 it("should forward to the implementation contract", async function () {
     const implementationFactory = await starknet.getContractFactory("contract");
-    const implementationClassHash = await implementationFactory.declare();
+    const account = ...;
+    const implementationClassHash = await account.declare(implementationFactory);
 
     const proxyFactory = await starknet.getContractFactory("delegate_proxy");
     const proxy = await proxyFactory.deploy({
@@ -394,7 +405,8 @@ it("should return transaction data and transaction receipt", async function () {
     const transaction = await starknet.getTransaction(contract.deployTxHash);
     console.log(transaction);
 
-    const txHash = await contract.invoke("increase_balance", { amount: 10 });
+    const account = ...;
+    const txHash = await account.invoke(contract, "increase_balance", { amount: 10 });
 
     const receipt = await starknet.getTransactionReceipt(txHash);
     const decodedEvents = await contract.decodeEvents(receipt.events);
@@ -426,7 +438,8 @@ Exchanging messages between L1 ([Ganache](https://www.npmjs.com/package/ganache)
     await l1contract.send(...); // depending on your L1 contract interaction library
     await starknet.devnet.flush();
 
-    await l2contract.invoke(...);
+    const account = ...;
+    await account.invoke(l2contract, ...);
     await starknet.devnet.flush();
   });
 ```
@@ -616,7 +629,7 @@ npm install --save-dev influenceth__cairo_math_64x61@npm:@influenceth/cairo-math
 
 ```typescript
 paths: {
-    cairoPaths: ["./node_modules"]
+    cairoPaths: ["./node_modules"];
 }
 ```
 
@@ -682,7 +695,7 @@ module.exports = {
 
 Accounts are deployed in the same network as the one passed as an argument to the `npx hardhat starknet-deploy-account` CLI command.
 
-To use the wallet in your scripts, use the `getWallet` utility function:
+To use the wallet in your scripts, use the `getWallet` utility function (using `Account.getAccountFromAddress(..., "OpenZeppelin")` will probably not work):
 
 ```typescript
 import { starknet } from "hardhat";
@@ -696,11 +709,11 @@ await contract.invoke("increase_balance", { amount: 1 }, { wallet });
 
 Recompilation is performed when contracts are updated or when artifacts are missing. A file will be created with the name `cairo-files-cache.json` to handle caching. Recompilation is handled before the following [CLI commands](#cli-commands) are executed.
 
-- `npx hardhat starknet-deploy`
-- `npx hardhat starknet-invoke`
-- `npx hardhat starknet-call`
-- `npx hardhat run`
-- `npx hardhat test`
+-   `npx hardhat starknet-deploy`
+-   `npx hardhat starknet-invoke`
+-   `npx hardhat starknet-call`
+-   `npx hardhat run`
+-   `npx hardhat test`
 
 This feature is turned off by default and is specified in the `hardhat.config.ts` file.
 
@@ -726,7 +739,7 @@ function deployAccount(accountType: AccountImplementationType, options?: DeployA
 ```
 
 -   `accountType` - the implementation of the Account that you want to use; currently supported implementations:
-    -   `"OpenZeppelin"` - [v0.3.1](https://github.com/OpenZeppelin/cairo-contracts/releases/tag/v0.3.1)
+    -   `"OpenZeppelin"` - [v0.4.0](https://github.com/OpenZeppelin/cairo-contracts/releases/tag/v0.4.0)
     -   `"Argent"` - [v0.2.2](https://github.com/argentlabs/argent-contracts-starknet/releases/tag/v0.2.2)
 -   `options` - optional deployment parameters:
     -   `salt` - for fixing the account address
@@ -763,10 +776,11 @@ const account = await starknet.getAccountFromAddress(
 ```
 
 You can then use the Account object to call and invoke your contracts using the `invoke` and `call` methods, that take as arguments the target contract, function name, and arguments:
+Use the `invoke` method of `Account` to invoke (change the state), but `call` method of `StarknetContract` to call (read the state).
 
 ```typescript
-const { res: amount } = await account.call(contract, "get_balance");
 await account.invoke(contract, "increase_balance", { amount });
+const { res: amount } = await contract.call("get_balance");
 ```
 
 ### Funds and Fees
@@ -792,7 +806,7 @@ await account.invoke(contract, "foo", { arg1: ... }, { maxFee: BigInt(...) });
 
 ### Multicalls
 
-You can also use the Account object to perform multi{calls, invokes, fee estimations}.
+You can also use the Account object to perform multi{invokes, fee estimations}.
 
 ```typescript
 const interactionArray = [
@@ -809,7 +823,6 @@ const interactionArray = [
 ];
 const fee = await account.multiEstimateFee(interactionArray);
 const txHash = await account.multiInvoke(interactionArray);
-const results = await account.multiCall(interactionArray);
 ```
 
 OpenZeppelin and Argent accounts have some differences:

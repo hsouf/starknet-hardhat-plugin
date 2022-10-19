@@ -13,7 +13,8 @@ import {
     getNetwork,
     findPath,
     getAccountPath,
-    isStarknetDevnet
+    isStarknetDevnet,
+    warn
 } from "./utils";
 import {
     HardhatNetworkConfig,
@@ -196,8 +197,7 @@ export async function starknetDeployAction(args: TaskArguments, hre: HardhatRunt
     const txHashes: string[] = [];
     for (let artifactsPath of artifactsPaths) {
         if (intRegex.test(artifactsPath)) {
-            console.warn(
-                "\x1b[33m%s\x1b[0m",
+            warn(
                 `Warning! Found an integer "${artifactsPath}" as an artifact path.\n` +
                     "Make sure that all inputs are passed within a single string (e.g --inputs '10 20 30')"
             );
@@ -466,7 +466,7 @@ async function starknetInteractAction(
 
     if (statusCode) {
         const msg =
-            `Could not perform ${choice.cliCommand} of ${args.function}:\n` +
+            `Could not perform ${choice.internalCommand} of ${args.function}:\n` +
             executed.stderr.toString();
         const replacedMsg = adaptLog(msg);
         throw new StarknetPluginError(replacedMsg);
@@ -488,8 +488,7 @@ async function starknetInteractAction(
                     resolve();
                 },
                 (error) => {
-                    console.error(`Invoke transaction ${txHash} is REJECTED`);
-                    reject(error);
+                    reject(new StarknetPluginError(`Invoke transaction ${txHash}: ${error}`));
                 }
             )
         );
@@ -505,6 +504,10 @@ export async function starknetDeployAccountAction(
     const accountDir = getAccountPath(wallet.accountPath, hre);
 
     fs.mkdirSync(accountDir, { recursive: true });
+
+    warn(
+        "Warning! You are deploying a modified version of OZ account which may not be compatible with the Account class."
+    );
 
     const executed = await hre.starknetWrapper.deployAccount({
         accountDir: accountDir,
@@ -595,4 +598,28 @@ export async function starknetRunAction(
 
 export async function starknetPluginVersionAction() {
     console.log(`Version: ${version}`);
+}
+
+export async function starknetMigrateAction(args: TaskArguments, hre: HardhatRuntimeEnvironment) {
+    if (!args.paths || args.paths.length < 1) {
+        throw new StarknetPluginError("Expected at least one file to migrate");
+    }
+
+    const root = hre.config.paths.root;
+    const defaultSourcesPath = hre.config.paths.starknetSources;
+    const files: string[] = args.paths || [defaultSourcesPath];
+    const cairoFiles: string[] = [];
+    for (let file of files) {
+        if (!path.isAbsolute(file)) {
+            file = path.normalize(path.join(root, file));
+        }
+        cairoFiles.push(file);
+    }
+
+    const result = await hre.starknetWrapper.migrateContract({
+        files: cairoFiles,
+        inplace: args.inplace
+    });
+
+    processExecuted(result, true);
 }
